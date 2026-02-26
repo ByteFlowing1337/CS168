@@ -104,9 +104,6 @@ class UDP:
         return f"UDP (src_port {self.src_port}, dst_port {self.dst_port}, " + \
             f"len {self.len}, cksum 0x{self.cksum:x})"
 
-def clear_buffer(recvsock: util.Socket):
-    while recvsock.recv_select():
-        recvsock.recvfrom()
 
 def traceroute(sendsock: util.Socket, recvsock: util.Socket, ip: str) \
         -> list[list[str]]:
@@ -133,16 +130,21 @@ def traceroute(sendsock: util.Socket, recvsock: util.Socket, ip: str) \
         sendsock.set_ttl(ttl)
         routers: list[str] = []
         for _ in range(PROBE_ATTEMPT_COUNT):
-            clear_buffer(recvsock)
             sendsock.sendto(b"", (ip, current_port))
             sent_port = current_port
             current_port += 1
             if not recvsock.recv_select():
+                # No packet arrived before timeout in this loop iteration
                 continue
-
+                
             buffer, sender_addr = recvsock.recvfrom()
+            if len(buffer) < 20:
+                continue
             router_ip = sender_addr[0]
             ipv4 = IPv4(buffer)
+            
+            if len(buffer) < ipv4.header_len + 8:
+                continue
             icmp = ICMP(buffer[ipv4.header_len:ipv4.header_len + 8])
 
             #Invalid ICMP Type
@@ -174,18 +176,17 @@ def traceroute(sendsock: util.Socket, recvsock: util.Socket, ip: str) \
             #Drop Delayed Duplicates 
             if inner_udp.dst_port != sent_port:
                 continue
-
+                
+            # If we get a valid response, add it to our list
             if router_ip not in routers:
                 routers.append(router_ip)
 
-            if router_ip == ip:
-                util.print_result(routers, ttl)
-                result.append(routers)
-                print(result)
-                return result
-            
         util.print_result(routers, ttl)
         result.append(routers)
+        if ip in routers:
+            return result
+            
+    return result
         
 
 
