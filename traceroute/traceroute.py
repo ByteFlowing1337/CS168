@@ -1,5 +1,4 @@
-import util
-
+from util import *
 # Your program should send TTLs in the range [1, TRACEROUTE_MAX_TTL] inclusive.
 # Technically IPv4 supports TTLs up to 255, but in practice this is excessive.
 # Most traceroute implementations cap at approximately 30.  The unit tests
@@ -24,33 +23,21 @@ class IPv4:
     # be stored in host byte order.
     #
     # You should only modify the __init__() method of this class.
-    version: int
-    header_len: int  # Note length in bytes, not the value in the packet.
-    tos: int         # Also called DSCP and ECN bits (i.e. on wikipedia).
-    length: int      # Total length of the packet.
-    id: int
-    flags: int
-    frag_offset: int
-    ttl: int
-    proto: int
-    cksum: int
-    src: str
-    dst: str
 
     def __init__(self, buffer: bytes):
         b = ''.join(format(byte, '08b') for byte in [*buffer])
-        self.version = int(b[:4], 2)
-        self.header_len = int(b[4:8], 2) * 4
-        self.tos = int(b[8:16], 2)
-        self.length = int(b[16:32], 2)
-        self.id = int(b[32:48], 2)
-        self.flags = int(b[48:51], 2)
-        self.frag_offset = int(b[51:64], 2)
-        self.ttl = int(b[64:72], 2)
-        self.proto = int(b[72:80], 2)
-        self.cksum = int(b[80:96], 2)
-        self.src = '.'.join(str(int(b[i:i+8], 2)) for i in range(96, 128, 8))
-        self.dst = '.'.join(str(int(b[i:i+8], 2)) for i in range(128, 160, 8))
+        self.version: int = int(b[:4], 2)
+        self.header_len: int = int(b[4:8], 2) * 4
+        self.tos: int = int(b[8:16], 2)
+        self.length: int = int(b[16:32], 2)
+        self.id: int = int(b[32:48], 2)
+        self.flags: int = int(b[48:51], 2)
+        self.frag_offset: int = int(b[51:64], 2)
+        self.ttl: int = int(b[64:72], 2)
+        self.proto: int = int(b[72:80], 2)
+        self.cksum: int = int(b[80:96], 2)
+        self.src: str = '.'.join(str(int(b[i:i+8], 2)) for i in range(96, 128, 8))
+        self.dst: str = '.'.join(str(int(b[i:i+8], 2)) for i in range(128, 160, 8))
 
     def __str__(self) -> str:
         return f"IPv{self.version} (tos 0x{self.tos:x}, ttl {self.ttl}, " + \
@@ -67,15 +54,12 @@ class ICMP:
     # host byte order.
     #
     # You should only modify the __init__() function of this class.
-    type: int
-    code: int
-    cksum: int
 
     def __init__(self, buffer: bytes):
         b = ''.join(format(byte, '08b') for byte in [*buffer])
-        self.type = int(b[:8], 2)
-        self.code = int(b[8:16], 2)
-        self.cksum = int(b[16:32], 2)
+        self.type: int = int(b[:8], 2)
+        self.code: int = int(b[8:16], 2)
+        self.cksum: int = int(b[16:32], 2)
 
     def __str__(self) -> str:
         return f"ICMP (type {self.type}, code {self.code}, " + \
@@ -88,24 +72,19 @@ class UDP:
     # host byte order.
     #
     # You should only modify the __init__() function of this class.
-    src_port: int
-    dst_port: int
-    len: int
-    cksum: int
-
     def __init__(self, buffer: bytes):
         b = ''.join(format(byte, '08b') for byte in [*buffer])
-        self.src_port = int(b[:16], 2)
-        self.dst_port = int(b[16:32], 2)
-        self.len = int(b[32:48], 2)
-        self.cksum = int(b[48:64], 2)
+        self.src_port: int = int(b[:16], 2)
+        self.dst_port: int = int(b[16:32], 2)
+        self.len: int = int(b[32:48], 2)
+        self.cksum: int = int(b[48:64], 2)
 
     def __str__(self) -> str:
         return f"UDP (src_port {self.src_port}, dst_port {self.dst_port}, " + \
             f"len {self.len}, cksum 0x{self.cksum:x})"
 
 
-def traceroute(sendsock: util.Socket, recvsock: util.Socket, ip: str) \
+def traceroute(sendsock: Socket, recvsock: Socket, ip: str) \
         -> list[list[str]]:
     """ Run traceroute and returns the discovered path.
 
@@ -181,7 +160,7 @@ def traceroute(sendsock: util.Socket, recvsock: util.Socket, ip: str) \
             if router_ip not in routers:
                 routers.append(router_ip)
 
-        util.print_result(routers, ttl)
+        print_result(routers, ttl)
         result.append(routers)
         if ip in routers:
             return result
@@ -194,7 +173,11 @@ def traceroute(sendsock: util.Socket, recvsock: util.Socket, ip: str) \
 
 
 if __name__ == '__main__':
-    args = util.parse_args()
-    ip_addr = util.gethostbyname(args.host)
+    # Traceroute on Windows relies on IPHLPAPI.DLL(win32 api, cannot be used with Python socket API).
+    if platform.system() == "Windows":
+        print("Windows does not support UDP traceroute.  Please run on Linux or MacOS.")
+        sys.exit(1)
+    args = parse_args()
+    ip_addr = gethostbyname(args.host)
     print(f"traceroute to {args.host} ({ip_addr})")
-    traceroute(util.Socket.make_udp(), util.Socket.make_icmp(), ip_addr)
+    traceroute(Socket.make_udp(), Socket.make_icmp(), ip_addr)
